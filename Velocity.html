@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Monte Carlo Simulation - Forecast Mode (with Resource Allocation)</title>
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/babel-standalone@6/babel.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet" />
+</head>
+<body class="bg-gray-100 p-6">
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useState, useEffect, useRef } = React;
+    const { jsPDF } = window.jspdf;
+
+    function MonteCarloSimulation() {
+      // Initial empty state for inputs
+      const initialInputs = {
+        piName: '',
+        epics: [{ name: '', estimate: '' }],
+        historicalVelocities: Array(6).fill(''),
+        allocationPct: [''],
+        targetSprints: ''
+      };
+
+      // Load only run history from localStorage
+      const loadHistory = () => {
+        try {
+          const saved = localStorage.getItem('mc_run_history');
+          return saved ? JSON.parse(saved) : [];
+        } catch (e) {
+          return [];
+        }
+      };
+
+      const [inputs, setInputs] = useState(initialInputs);
+      const { piName, epics, historicalVelocities, allocationPct, targetSprints } = inputs;
+      const [runHistory, setRunHistory] = useState(loadHistory());
+      const [results, setResults] = useState(null);
+      const [textOutput, setTextOutput] = useState('');
+      const [selectedRun, setSelectedRun] = useState(null);
+      const chartRef = useRef(null);
+
+      // Persist runHistory only
+      useEffect(() => {
+        localStorage.setItem('mc_run_history', JSON.stringify(runHistory));
+      }, [runHistory]);
+
+      // Update part of inputs
+      const updateInputs = (upd) => setInputs(prev => ({ ...prev, ...upd }));
+
+      // Handlers for input fields
+      const handlePiName = v => updateInputs({ piName: v });
+      const handleEpic = (i, f, v) => updateInputs({
+        epics: epics.map((e, idx) => idx === i ? { ...e, [f]: v } : e)
+      });
+      const addEpic = () => updateInputs({
+        epics: [...epics, { name: '', estimate: '' }],
+        allocationPct: [...allocationPct, '']
+      });
+      const removeEpic = i => updateInputs({
+        epics: epics.filter((_, idx) => idx !== i),
+        allocationPct: allocationPct.filter((_, idx) => idx !== i)
+      });
+      const handleVelocity = (i, v) => updateInputs({
+        historicalVelocities: historicalVelocities.map((x, idx) => idx === i ? v : x)
+      });
+      const handleAlloc = (i, v) => updateInputs({
+        allocationPct: allocationPct.map((x, idx) => idx === i ? v : x)
+      });
+      const handleTarget = v => updateInputs({ targetSprints: v });
+
+      // Monte Carlo simulation functions
+      const simulate = (dist, est) => {
+        const runs = [];
+        for (let j = 0; j < 10000; j++) {
+          let total = 0, sprints = 0;
+          while (total < est) {
+            total += dist[Math.floor(Math.random() * dist.length)];
+            sprints++;
+          }
+          runs.push(sprints);
+        }
+        return runs.sort((a, b) => a - b);
+      };
+
+      // Find allocation percentage needed to finish in t sprints at given confidence
+      const findPctForTarget = (est, vels, t, alpha = 0.75) => {
+        for (let p = 1; p <= 100; p++) {
+          const arr = simulate(vels.map(v => v * p / 100), est);
+          if (arr[Math.floor(alpha * arr.length)] <= t) return p;
+        }
+        return null;
+      };
+
+      // Execute simulation and record history
+      const runSimulation = () => {
+        const vels = historicalVelocities.map(Number).filter(x => x > 0);
+        const t = Number(targetSprints);
+        if (
+          vels.length < 4 ||
+          epics.some(e => !e.estimate || Number(e.estimate) <= 0) ||
+          allocationPct.some(p => !p || Number(p) <= 0 || Number(p) > 100) ||
+          isNaN(t) || t <= 0
+        ) {
+          alert('Please fill out all fields correctly.');
+          return;
+        }
+
+        const estimates = epics.map(e => Number(e.estimate));
+        const distributions = allocationPct.map((pct, i) =>
+          vels.map(v => v * Number(pct) / 100)
+        );
+
+        const allResults = distributions.map((d, i) => simulate(d, estimates[i]));
+        const grid = Array.from({ length: 21 }, (_, k) => k * 5);
+        const pctData = allResults.map(arr =>
+          grid.map(p => arr[Math.floor((p / 100) * (arr.length - 1))])
+        );
+
+        setResults({ grid, pctData, allResults });
+
+        // ---- OUTPUT LOGIC ADAPTED FOR BOTH 75% AND 95% ----
+        let txt = '';
+        allResults.forEach((arr, i) => {
+          txt += `Epic "${epics[i].name || `Epic ${i+1}`}"\n\n`;
+          [0.75, 0.95].forEach((conf, idx) => {
+            const label = idx === 0 ? '75%' : '95%';
+            const sprintsNeeded = arr[Math.floor(conf * arr.length)];
+            const alloc = allocationPct[i];
+            const allocNeeded = findPctForTarget(estimates[i], vels, t, conf);
+            txt += `${label} confidence\n`;
+            txt += `- With ${alloc}% resource allocation, you can expect to complete epic "${epics[i].name || `Epic ${i+1}`}" within ${sprintsNeeded} sprints\n`;
+            if (allocNeeded !== null) {
+              txt += `- You would need to allocate ${allocNeeded}% of capacity to finish in ${t} sprints\n`;
+            } else {
+              txt += `- Over 100% capacity needed to finish in ${t} sprints\n`;
+            }
+            txt += `\n`;
+          });
+          txt += `\n`;
+        });
+        setTextOutput(txt.trim());
+        // ---- END OUTPUT LOGIC ----
+
+        // Save to history
+        const runEntry = {
+          id: Date.now(),
+          timestamp: new Date().toLocaleString(),
+          inputs,
+          results: { grid, pctData },
+          textOutput: txt.trim()
+        };
+        setRunHistory(prev => [...prev, runEntry]);
+        setSelectedRun(runEntry.id);
+      };
+
+      // Draw chart on result change
+      useEffect(() => {
+        if (!results || !chartRef.current) return;
+        const ctx = chartRef.current.getContext('2d');
+        if (chartRef.current.chart) chartRef.current.chart.destroy();
+        const datasets = results.pctData.map((data, i) => ({
+          label: epics[i].name || `Epic ${i+1}`,
+          data,
+          fill: false,
+          tension: 0.3,
+          borderColor: `hsl(${i*60},70%,50%)`
+        }));
+        chartRef.current.chart = new Chart(ctx, {
+          type: 'line',
+          data: { labels: results.grid, datasets },
+          options: {
+            scales: {
+              x: { title: { display: true, text: 'Probability (%)' } },
+              y: { title: { display: true, text: 'Sprints Needed' } }
+            }
+          }
+        });
+      }, [results]);
+
+      // Load a saved run
+      const loadFromHistory = (id) => {
+        const entry = runHistory.find(r => r.id === id);
+        if (!entry) return;
+        setInputs(entry.inputs);
+        setResults(entry.results);
+        setTextOutput(entry.textOutput);
+        setSelectedRun(id);
+      };
+
+      // Clear history
+      const clearHistoryList = () => setRunHistory([]);
+
+      // Export PDF
+      const downloadPDF = () => {
+        if (!results) { alert('Please run the simulation first.'); return; }
+        const doc = new jsPDF();
+        let y = 10;
+        doc.text(`PI: ${piName}`, 10, y); y += 8;
+        epics.forEach((e, i) => {
+          doc.text(`Epic ${i+1}: ${e.name || `Epic ${i+1}`}, Estimate: ${e.estimate}, Allocation: ${allocationPct[i]}%`, 10, y);
+          y += 8;
+        });
+        doc.text(`Historical Velocities: ${historicalVelocities.join(', ')}`, 10, y); y += 8;
+        doc.text(`Target Sprints: ${targetSprints}`, 10, y); y += 12;
+        doc.text('Simulation Results:', 10, y); y += 8;
+        textOutput.split('\n').forEach(line => {
+          if (y > 280) { doc.addPage(); y = 10; }
+          doc.text(line, 10, y); y += 8;
+        });
+        if (chartRef.current && chartRef.current.toDataURL) {
+          if (y > 200) { doc.addPage(); y = 10; }
+          doc.addImage(chartRef.current.toDataURL(), 'PNG', 10, y, 180, 80);
+        }
+        doc.save((piName || 'report') + '.pdf');
+      };
+
+      return (
+        <div className="max-w-4xl mx-auto bg-white p-6 rounded shadow">
+          <h1 className="text-2xl font-bold mb-4">Monte Carlo Simulation</h1>
+
+          {/* History Section */}
+          <div className="mb-6">
+            <h2 className="text-lg font-semibold">Simulation History</h2>
+            <button onClick={clearHistoryList} className="text-sm text-red-600">Clear All</button>
+            <ul className="list-disc pl-6 max-h-32 overflow-auto">
+              {runHistory.map(r => (
+                <li key={r.id}>
+                  <button
+                    onClick={() => loadFromHistory(r.id)}
+                    className={r.id === selectedRun ? 'font-bold' : ''}
+                  >
+                    {`${r.timestamp} | ${r.inputs.piName || 'No PI'} | ${r.inputs.epics.map(e => e.name || '').join(', ')}`}
+                  </button>
+                </li>
+              ))}
+              {runHistory.length === 0 && <li>None available</li>}
+            </ul>
+          </div>
+
+          {/* Input Form */}
+          <input
+            className="border p-2 mb-4 w-full"
+            placeholder="PI Name & Year"
+            value={piName}
+            onChange={e => handlePiName(e.target.value)}
+          />
+          {epics.map((e, i) => (
+            <div key={i} className="mb-4 p-4 border rounded">
+              <div className="flex gap-2">
+                <input
+                  className="border p-2 flex-1"
+                  placeholder="Epic Name"
+                  value={e.name}
+                  onChange={e2 => handleEpic(i, 'name', e2.target.value)}
+                />
+                <input
+                  className="border p-2 w-32"
+                  type="number"
+                  placeholder="Estimate"
+                  value={e.estimate}
+                  onChange={e2 => handleEpic(i, 'estimate', e2.target.value)}
+                />
+                <input
+                  className="border p-2 w-32"
+                  type="number"
+                  min="0"
+                  max="100"
+                  placeholder="Allocation %"
+                  value={allocationPct[i]}
+                  onChange={e2 => handleAlloc(i, e2.target.value)}
+                />
+                <button
+                  className="text-red-600 font-bold"
+                  onClick={() => removeEpic(i)}
+                >Remove</button>
+              </div>
+            </div>
+          ))}
+          <button
+            className="bg-blue-500 text-white py-2 px-4 rounded mb-6 w-full"
+            onClick={addEpic}
+          >Add Epic</button>
+
+          <h2 className="text-lg font-semibold mb-2">Historical Velocities (last 6)</h2>
+          <div className="grid grid-cols-6 gap-2 mb-6">
+            {historicalVelocities.map((v, i) => (
+              <input
+                key={i}
+                className="border p-2"
+                type="number"
+                placeholder={`Sprint ${i+1}`}
+                value={v}
+                onChange={e => handleVelocity(i, e.target.value)}
+              />
+            ))}
+          </div>
+
+          <div className="flex gap-2 mb-6">
+            <input
+              className="border p-2 w-32"
+              type="number"
+              placeholder="Target Sprints"
+              value={targetSprints}
+              onChange={e => handleTarget(e.target.value)}
+            />
+            <button
+              className="bg-green-500 text-white py-2 px-4 rounded flex-1"
+              onClick={runSimulation}
+            >Run Simulation</button>
+          </div>
+
+          <button
+            className="bg-purple-600 text-white py-2 px-4 rounded w-full mb-6"
+            onClick={downloadPDF}
+          >Download PDF</button>
+
+          {results && (
+            <div>
+              <canvas ref={chartRef} className="mb-6 w-full h-64"></canvas>
+              <pre className="bg-gray-100 p-4 rounded whitespace-pre-wrap">{textOutput}</pre>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // Render with React 18
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<MonteCarloSimulation />);
+  </script>
+</body>
+</html>
