@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Forecast Simulation Portal</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet" />
+  <style>
+    .tab-btn { transition: background 0.2s, color 0.2s; }
+    .tab-btn.active { background: #2563eb; color: #fff; }
+  </style>
+</head>
+<body class="bg-gray-100 min-h-screen flex flex-col items-center p-6">
+  <div class="max-w-4xl w-full bg-white rounded shadow p-4">
+
+    <h1 class="text-2xl font-bold mb-6 text-center">Forecast Simulation Portal</h1>
+    <div class="flex mb-6 justify-center gap-4">
+      <button class="tab-btn px-4 py-2 rounded font-medium active" id="tab-velocity">Monte Carlo (Velocity-based)</button>
+      <button class="tab-btn px-4 py-2 rounded font-medium" id="tab-throughput">Monte Carlo (Throughput-based)</button>
+    </div>
+
+    <!-- Tab Content -->
+    <div>
+      <iframe id="iframe-velocity"
+              src="your-velocity-simulation.html"
+              class="w-full rounded h-[850px] border"
+              style="display:block;"></iframe>
+      <iframe id="iframe-throughput"
+              src="your-throughput-simulation.html"
+              class="w-full rounded h-[850px] border"
+              style="display:none;"></iframe>
+    </div>
+    <div class="text-xs text-gray-400 mt-4 text-center">
+      Tip: Both simulations support local history and PDF export.
+    </div>
+  </div>
+
+  <script>
+    const tabVelocity = document.getElementById('tab-velocity');
+    const tabThroughput = document.getElementById('tab-throughput');
+    const iframeVelocity = document.getElementById('iframe-velocity');
+    const iframeThroughput = document.getElementById('iframe-throughput');
+
+    tabVelocity.onclick = function() {
+      tabVelocity.classList.add('active');
+      tabThroughput.classList.remove('active');
+      iframeVelocity.style.display = 'block';
+      iframeThroughput.style.display = 'none';
+    };
+    tabThroughput.onclick = function() {
+      tabThroughput.classList.add('active');
+      tabVelocity.classList.remove('active');
+      iframeVelocity.style.display = 'none';
+      iframeThroughput.style.display = 'block';
+    };
+  </script>
+</body>
+</html>
