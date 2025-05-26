@@ -3,10 +3,10 @@
   "weekLabel": "KW {WW}/{YYYY}",
   "teams": [
     { "name": "TFS", "filterId": 123129 },
-    { "name": "TTT",  "filterId": 123128 }
-    { "name": "TNT",  "filterId": 123127 }
-    { "name": "Synergy",  "filterId": 123195 }
-    { "name": "Sales",  "filterId": 123194 }
-    { "name": "Payment",  "filterId": 123193 }
+    { "name": "TTT",  "filterId": 123128 },
+    { "name": "TNT",  "filterId": 123127 },
+    { "name": "Synergy",  "filterId": 123195 },
+    { "name": "Sales",  "filterId": 123194 },
+    { "name": "Payment",  "filterId": 123193 },
   ]
 }
