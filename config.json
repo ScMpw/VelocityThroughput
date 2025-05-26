@@ -7,6 +7,6 @@
     { "name": "TNT",  "filterId": 123127 },
     { "name": "Synergy",  "filterId": 123195 },
     { "name": "Sales",  "filterId": 123194 },
-    { "name": "Payment",  "filterId": 123193 },
+    { "name": "Payment",  "filterId": 123193 }
   ]
 }
