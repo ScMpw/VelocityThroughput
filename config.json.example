@@ -1,8 +1,12 @@
 {
-  "jiraBaseUrl": "https://your-domain.atlassian.net",
+  "jiraBaseUrl": "https://aldi-sued.atlassian.net",
   "weekLabel": "KW {WW}/{YYYY}",
   "teams": [
-    { "name": "Team Alpha", "filterId": 12345 },
-    { "name": "Team Beta",  "filterId": 67890 }
+    { "name": "TFS", "filterId": 123129 },
+    { "name": "TTT",  "filterId": 123128 }
+    { "name": "TNT",  "filterId": 123127 }
+    { "name": "Synergy",  "filterId": 123195 }
+    { "name": "Sales",  "filterId": 123194 }
+    { "name": "Payment",  "filterId": 123193 }
   ]
 }
