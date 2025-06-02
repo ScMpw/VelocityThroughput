@@ -8,5 +8,6 @@
     { "name": "Synergy",  "filterId": 123195 },
     { "name": "Sales",  "filterId": 123194 },
     { "name": "Payment",  "filterId": 123193 }
+    { "name": "CHO",  "filterId": 123418 }
   ]
 }
