@@ -9,6 +9,7 @@
     { "name": "Sales",  "filterId": 123194 },
     { "name": "Payment",  "filterId": 123193 },
     { "name": "CHO",  "filterId": 123418 },
-    { "name": "Sales TEST",  "filterId": 123485}    
+    { "name": "Sales TEST",  "filterId": 123485},
+    { "name": "Sales TEST",  "filterId": 123492}
   ]
 }
